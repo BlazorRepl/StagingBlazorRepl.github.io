@@ -25,10 +25,10 @@
             if (e.ctrlKey && e.keyCode === 83) {
                 e.preventDefault();
                 if (dotNetInstance && dotNetInstance.invokeMethodAsync) {
-                    throttle(() => dotNetInstance.invokeMethodAsync('OnCompileEvent'), 1000, 'compile')
+                    throttle(() => dotNetInstance.invokeMethodAsync('OnCompileEvent'), 1000, 'compile');
                 }
             }
-        })
+        });
     }
 
     window.App.reloadIFrame = function (id) {
@@ -38,17 +38,39 @@
         }
     }
 
+    window.App.appendSegmentToUrl = function (id) {
+        if (!id) {
+            return;
+        }
+
+        let currentHref = window.location.href.trim();
+        if (!currentHref) {
+            return;
+        }
+
+        if (currentHref[currentHref.length - 1] !== '/') {
+            currentHref += '/';
+        }
+
+        window.location.href = currentHref + id;
+    }
+
     window.App.initEditor = function (editorId, defaultValue) {
-        var value = defaultValue ||
-            `<h1>Hello World</h1>
+        require.config({ paths: { 'vs': 'lib/monaco-editor/min/vs' } });
+        require(['vs/editor/editor.main'], () => {
+            const oldValue = window.App.getEditorValue();
+            const oldEditorElement = document.getElementById(editorId);
+            if (oldEditorElement && oldEditorElement.childNodes) {
+                oldEditorElement.childNodes.forEach(c => oldEditorElement.removeChild(c));
+            }
+
+            var value = defaultValue || oldValue ||
+                `<h1>Hello World</h1>
 
 @code {
 
 }
 `;
-
-        require.config({ paths: { 'vs': 'lib/monaco-editor/min/vs' } });
-        require(['vs/editor/editor.main'], () => {
             editor = monaco.editor.create(document.getElementById(editorId), {
                 fontSize: '16px',
                 value: value,
