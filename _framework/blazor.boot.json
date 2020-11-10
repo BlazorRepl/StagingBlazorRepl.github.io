@@ -203,7 +203,7 @@
       "Microsoft.JSInterop.dll": "sha256-0o\/vt4NH\/VfmWZxWcdLsy7WlafnyiNlCMmFoL1QmfMg=",
       "Microsoft.JSInterop.WebAssembly.dll": "sha256-5AkXTXHIeXryrSr97JWjBrndsRjoslMVJ8e7FqupHUw=",
       "System.IO.Pipelines.dll": "sha256-qj+ITVhmJUAkSBctDayU4uUjNTKdXqAbF2zAxo7\/mkM=",
-      "BlazorRepl.Core.dll": "sha256-IIxRe2k4Mpo8O1o87AqAPAGcK8YX+Gu8TU3\/Htup1Zo=",
+      "BlazorRepl.Core.dll": "sha256-tAUfbDkkshZ9i+su4Kl9MA1\/Pf773H2K+NNUPLeO9aM=",
       "BlazorRepl.UserComponents.dll": "sha256-c5ZPk6qkxpiZYZJcj\/6wnnlEqQHqnltQm\/\/BDfgQFLc="
     },
     "lazyAssembly": null,
