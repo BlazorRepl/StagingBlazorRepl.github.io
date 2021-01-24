@@ -3,7 +3,7 @@
         reloadIFrame: function (id, newSrc) {
             const iFrame = document.getElementById(id);
             if (iFrame) {
-                if (newSrc) {
+                if (newSrc && iFrame.src !== `${window.location.origin}${newSrc}`) {
                     iFrame.src = newSrc;
                 } else {
                     iFrame.contentWindow.location.reload();
@@ -127,6 +127,7 @@ window.App.Repl = window.App.Repl || (function () {
     let _editorContainerId;
     let _resultContainerId;
     let _editorId;
+    let _originalHistoryPushStateFunction;
 
     function setElementHeight(elementId, excludeTabsHeight) {
         const element = document.getElementById(elementId);
@@ -206,16 +207,29 @@ window.App.Repl = window.App.Repl || (function () {
         }
     }
 
-    function base64ToArrayBuffer(base64) {
-        const binaryString = window.atob(base64);
-        const binaryLen = binaryString.length;
-        const bytes = new Uint8Array(binaryLen);
-        for (let i = 0; i < binaryLen; i++) {
-            const ascii = binaryString.charCodeAt(i);
-            bytes[i] = ascii;
-        }
+    function enableNavigateAwayConfirmation() {
+        window.onbeforeunload = () => true;
 
-        return bytes;
+        _originalHistoryPushStateFunction = window.history.pushState;
+        window.history.pushState = (originalHistoryPushStateFunction => function () {
+            const newUrl = arguments[2] && arguments[2].toLowerCase();
+            if (newUrl && (newUrl.endsWith('/repl') || newUrl.includes('/repl/'))) {
+                return originalHistoryPushStateFunction.apply(this, arguments);
+            }
+
+            const navigateAwayConfirmed = confirm('Are you sure you want to leave REPL page? Changes you made may not be saved.');
+            return navigateAwayConfirmed
+                ? originalHistoryPushStateFunction.apply(this, arguments)
+                : null;
+        })(window.history.pushState);
+    }
+
+    function disableNavigateAwayConfirmation() {
+        window.onbeforeunload = null;
+
+        if (_originalHistoryPushStateFunction) {
+            window.history.pushState = _originalHistoryPushStateFunction;
+        }
     }
 
     return {
@@ -234,30 +248,13 @@ window.App.Repl = window.App.Repl || (function () {
 
             window.addEventListener('resize', onWindowResize);
             window.addEventListener('keydown', onKeyDown);
+
+            //enableNavigateAwayConfirmation();
         },
         setCodeEditorContainerHeight: function () {
             if (setElementHeight(_editorContainerId, true)) {
                 resetEditor();
             }
-        },
-        updateUserAssemblyInCacheStorage: function (file) {
-            const response = new Response(new Blob([base64ToArrayBuffer(file)], { type: 'application/octet-stream' }));
-
-            caches.open('blazor-resources-/').then(function (cache) {
-                if (!cache) {
-                    // TODO: alert user
-                    return;
-                }
-
-                cache.keys().then(function (keys) {
-                    const keysForDelete = keys.filter(x => x.url.indexOf('UserComponents') > -1);
-
-                    const dll = keysForDelete.find(x => x.url.indexOf('dll') > -1).url.substr(window.location.origin.length);
-                    cache.delete(dll).then(function () {
-                        cache.put(dll, response).then(function () { });
-                    });
-                });
-            });
         },
         dispose: function () {
             _dotNetInstance = null;
@@ -267,6 +264,8 @@ window.App.Repl = window.App.Repl || (function () {
 
             window.removeEventListener('resize', onWindowResize);
             window.removeEventListener('keydown', onKeyDown);
+
+            disableNavigateAwayConfirmation();
         }
     };
 }());
@@ -305,6 +304,136 @@ window.App.SaveSnippetPopup = window.App.SaveSnippetPopup || (function () {
             _id = null;
 
             window.removeEventListener('click', closePopupOnWindowClick);
+        }
+    };
+}());
+
+window.App.CodeExecution = window.App.CodeExecution || (function () {
+    const UNEXPECTED_ERROR_MESSAGE = 'An unexpected error has occurred. Please try again later or contact the team.';
+
+    let _loadedPackageDlls = null;
+
+    function jsArrayToDotNetArray(jsArray) {
+        jsArray = jsArray || [];
+
+        const dotNetArray = BINDING.mono_obj_array_new(jsArray.length);
+        for (let i = 0; i < jsArray.length; ++i) {
+            BINDING.mono_obj_array_set(dotNetArray, i, jsArray[i]);
+        }
+
+        return dotNetArray;
+    }
+
+    async function putInCacheStorage(cache, fileName, fileBytes) {
+        const cachedResponse = new Response(
+            new Blob([fileBytes]),
+            {
+                headers: {
+                    'Content-Type': 'application/octet-stream',
+                    'Content-Length': fileBytes.length.toString()
+                }
+            });
+
+        await cache.put(fileName, cachedResponse);
+    }
+
+    function convertBytesToBase64String(bytes) {
+        let binaryString = '';
+        bytes.forEach(byte => binaryString += String.fromCharCode(byte));
+
+        return btoa(binaryString);
+    }
+
+    function convertBase64StringToBytes(base64String) {
+        const binaryString = window.atob(base64String);
+
+        const bytesCount = binaryString.length;
+        const bytes = new Uint8Array(bytesCount);
+        for (let i = 0; i < bytesCount; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        return bytes;
+    }
+
+    return {
+        updateUserComponentsDll: async function (fileAsBase64String) {
+            if (!fileAsBase64String) {
+                return;
+            }
+
+            const cache = await caches.open('blazor-resources-/');
+            if (!cache) {
+                alert(UNEXPECTED_ERROR_MESSAGE);
+                return;
+            }
+
+            const cacheKeys = await cache.keys();
+            const userComponentsDllCacheKey = cacheKeys.find(x => x.url.indexOf('BlazorRepl.UserComponents.dll') > -1);
+            if (!userComponentsDllCacheKey || !userComponentsDllCacheKey.url) {
+                alert(UNEXPECTED_ERROR_MESSAGE);
+                return;
+            }
+
+            const dllPath = userComponentsDllCacheKey.url.substr(window.location.origin.length);
+            const dllBytes = convertBase64StringToBytes(fileAsBase64String);
+            await putInCacheStorage(cache, dllPath, dllBytes);
+        },
+        storePackageFile: async function (rawSessionId, rawFileName, rawFileBytes) {
+            if (!rawSessionId || !rawFileName || !rawFileBytes) {
+                return;
+            }
+
+            const sessionId = BINDING.conv_string(rawSessionId);
+            const packagesCache = await caches.open(`packages-${sessionId}/`);
+            if (!packagesCache) {
+                return;
+            }
+
+            const fileName = BINDING.conv_string(rawFileName);
+            const fileBytes = Blazor.platform.toUint8Array(rawFileBytes);
+            await putInCacheStorage(packagesCache, fileName, fileBytes);
+        },
+        loadPackageFiles: async function (rawSessionId) {
+            if (!rawSessionId) {
+                return;
+            }
+
+            const sessionId = BINDING.conv_string(rawSessionId);
+            const packagesCache = await caches.open(`packages-${sessionId}/`);
+            if (!packagesCache) {
+                return;
+            }
+
+            const dlls = [];
+
+            const files = await packagesCache.keys();
+            for (const file of files) {
+                const response = await packagesCache.match(file.url);
+                const bytes = new Uint8Array(await response.arrayBuffer());
+
+                if (file.url.endsWith('.css')) {
+                    const fileContent = convertBytesToBase64String(bytes);
+                    const link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.type = 'text/css';
+                    link.href = `data:text/css;base64,${fileContent}`;
+                    document.head.appendChild(link);
+                } else if (file.url.endsWith('.js')) {
+                    const fileContent = convertBytesToBase64String(bytes);
+                    const script = document.createElement('script');
+                    script.src = `data:text/javascript;base64,${fileContent}`;
+                    document.body.appendChild(script);
+                } else {
+                    // Use js_typed_array_to_array instead of jsArrayToDotNetArray so we get a byte[] instead of object[] in .NET code.
+                    dlls.push(BINDING.js_typed_array_to_array(bytes));
+                }
+            }
+
+            _loadedPackageDlls = jsArrayToDotNetArray(dlls);
+        },
+        getLoadedPackageDlls: function () {
+            return _loadedPackageDlls;
         }
     };
 }());
