@@ -81,6 +81,12 @@ app {
     background-color: rgba(255, 255, 255, 0.1);
 }
 
+.btn-br-primary {
+    background: #4aca85;
+    color: #fff;
+    border: 1px solid #4aca85;
+}
+
 .valid.modified:not([type=checkbox]) {
     outline: 1px solid #26b050;
 }
@@ -187,16 +193,47 @@ app {
 }
 
 /* Package Manager */
+.package-manager {
+    padding: 8px;
+    width: 20%;
+}
+
+.package-container {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    margin-bottom: 2px;
+}
+
+    .package-container .package-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: inline-block;
+        max-width: 250px;
+    }
+
+.search-package-wrapper input,
+.search-package-wrapper select {
+    display: inline-block;
+    margin-right: 5px;
+}
+
 .package-manager .search-package-wrapper {
     display: flex;
     justify-content: space-around;
     margin-bottom: 5px;
 }
 
-.btn-br-primary {
-    background: #4aca85;
-    color: #fff;
-    border: 1px solid #4aca85;
+.package-manager-header {
+    padding-right: 0.25em;
+    margin-bottom: 20px;
+    background-color: #F5F5F5
+}
+
+.package-manager-close-btn {
+    cursor: pointer;
+    font-size: 1.3em;
+    font-weight: bold;
 }
 
 /* App Loader */
@@ -243,6 +280,12 @@ app {
 
 .repl-navbar {
     margin-bottom: 0;
+    color: #303133;
+}
+
+.nuget-package-image {
+    width: 25px;
+    padding-bottom: 5px;
 }
 
 /* Splitter */
@@ -333,7 +376,6 @@ app {
         left: 46%;
     }
 }
-
 
 /* Package License Popup */
 .package-license-overlay {

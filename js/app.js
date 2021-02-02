@@ -17,6 +17,15 @@
 
             window.history.pushState(null, null, url);
         },
+        getUrlFragmentValue: function () {
+            const hash = window.location.hash;
+            const hashValue = hash && hash.substr(1);
+            if (!hashValue) {
+                return null;
+            }
+
+            return BINDING.js_string_to_mono_string(hashValue);
+        },
         copyToClipboard: function (text) {
             if (!text) {
                 return;
@@ -38,8 +47,9 @@
 window.App.CodeEditor = window.App.CodeEditor || (function () {
     let _editor;
     let _overrideValue;
+    let _currentLanguage;
 
-    function initEditor(editorId, value) {
+    function initEditor(editorId, value, language) {
         if (!editorId) {
             return;
         }
@@ -49,10 +59,11 @@ window.App.CodeEditor = window.App.CodeEditor || (function () {
             _editor = monaco.editor.create(document.getElementById(editorId), {
                 fontSize: '16px',
                 value: _overrideValue || value || '',
-                language: 'razor'
+                language: language || _currentLanguage || 'razor'
             });
 
             _overrideValue = null;
+            _currentLanguage = language || _currentLanguage;
         });
     }
 
@@ -60,11 +71,16 @@ window.App.CodeEditor = window.App.CodeEditor || (function () {
         return _editor && _editor.getValue();
     }
 
-    function setValue(value) {
+    function setValue(value, language) {
         if (_editor) {
             _editor.setValue(value || '');
+            if (language && language !== _currentLanguage) {
+                monaco.editor.setModelLanguage(_editor.getModel(), language);
+                _currentLanguage = language;
+            }
         } else {
             _overrideValue = value;
+            _currentLanguage = language || _currentLanguage;
         }
     }
 
@@ -80,40 +96,6 @@ window.App.CodeEditor = window.App.CodeEditor || (function () {
         focus: focus,
         dispose: function () {
             _editor = null;
-        }
-    };
-}());
-
-window.App.TabManager = window.App.TabManager || (function () {
-    const ENTER_KEY_CODE = 13;
-
-    let _dotNetInstance;
-    let _newTabInput;
-
-    function onNewTabInputKeyDown(ev) {
-        if (ev.keyCode === ENTER_KEY_CODE) {
-            ev.preventDefault();
-
-            if (_dotNetInstance && _dotNetInstance.invokeMethodAsync) {
-                _dotNetInstance.invokeMethodAsync('CreateTabAsync');
-            }
-        }
-    }
-
-    return {
-        init: function (newTabInputSelector, dotNetInstance) {
-            _dotNetInstance = dotNetInstance;
-            _newTabInput = document.querySelector(newTabInputSelector);
-            if (_newTabInput) {
-                _newTabInput.addEventListener('keydown', onNewTabInputKeyDown);
-            }
-        },
-        dispose: function () {
-            _dotNetInstance = null;
-
-            if (_newTabInput) {
-                _newTabInput.removeEventListener('keydown', onNewTabInputKeyDown);
-            }
         }
     };
 }());
@@ -172,14 +154,14 @@ window.App.Repl = window.App.Repl || (function () {
         }
     }
 
-    function resetEditor() {
+    function resetEditor(newLanguage) {
         const value = window.App.CodeEditor.getValue();
         const oldEditorElement = document.getElementById(_editorId);
         if (oldEditorElement && oldEditorElement.childNodes) {
             oldEditorElement.childNodes.forEach(c => oldEditorElement.removeChild(c));
         }
 
-        window.App.CodeEditor.initEditor(_editorId, value);
+        window.App.CodeEditor.initEditor(_editorId, value, newLanguage);
     }
 
     function onWindowResize() {
@@ -251,12 +233,11 @@ window.App.Repl = window.App.Repl || (function () {
 
             //enableNavigateAwayConfirmation();
         },
-        setCodeEditorContainerHeight: function () {
-            if (setElementHeight(_editorContainerId, true)) {
-                resetEditor();
-            }
+        setCodeEditorContainerHeight: function (newLanguage) {
+            setElementHeight(_editorContainerId, true);
+            resetEditor(newLanguage);
         },
-        dispose: function () {
+        dispose: async function (sessionId) {
             _dotNetInstance = null;
             _editorContainerId = null;
             _resultContainerId = null;
@@ -266,6 +247,8 @@ window.App.Repl = window.App.Repl || (function () {
             window.removeEventListener('keydown', onKeyDown);
 
             disableNavigateAwayConfirmation();
+
+            await window.App.CodeExecution.clearPackages(sessionId);
         }
     };
 }());
@@ -357,10 +340,12 @@ window.App.CodeExecution = window.App.CodeExecution || (function () {
     }
 
     return {
-        updateUserComponentsDll: async function (fileAsBase64String) {
-            if (!fileAsBase64String) {
+        updateUserComponentsDll: async function (fileContent) {
+            if (!fileContent) {
                 return;
             }
+
+            const fileAsBase64String = typeof fileContent === 'string' ? fileContent : BINDING.conv_string(fileContent);
 
             const cache = await caches.open('blazor-resources-/');
             if (!cache) {
@@ -377,6 +362,7 @@ window.App.CodeExecution = window.App.CodeExecution || (function () {
 
             const dllPath = userComponentsDllCacheKey.url.substr(window.location.origin.length);
             const dllBytes = convertBase64StringToBytes(fileAsBase64String);
+
             await putInCacheStorage(cache, dllPath, dllBytes);
         },
         storePackageFile: async function (rawSessionId, rawFileName, rawFileBytes) {
@@ -385,23 +371,28 @@ window.App.CodeExecution = window.App.CodeExecution || (function () {
             }
 
             const sessionId = BINDING.conv_string(rawSessionId);
+            const fileName = BINDING.conv_string(rawFileName);
+            const fileBytes = Blazor.platform.toUint8Array(rawFileBytes);
+
             const packagesCache = await caches.open(`packages-${sessionId}/`);
             if (!packagesCache) {
                 return;
             }
 
-            const fileName = BINDING.conv_string(rawFileName);
-            const fileBytes = Blazor.platform.toUint8Array(rawFileBytes);
             await putInCacheStorage(packagesCache, fileName, fileBytes);
         },
         loadPackageFiles: async function (rawSessionId) {
             if (!rawSessionId) {
+                // Prevent endless loop on getting the loaded DLLs
+                _loadedPackageDlls = [];
                 return;
             }
 
             const sessionId = BINDING.conv_string(rawSessionId);
             const packagesCache = await caches.open(`packages-${sessionId}/`);
             if (!packagesCache) {
+                // Prevent endless loop on getting the loaded DLLs
+                _loadedPackageDlls = [];
                 return;
             }
 
@@ -434,6 +425,13 @@ window.App.CodeExecution = window.App.CodeExecution || (function () {
         },
         getLoadedPackageDlls: function () {
             return _loadedPackageDlls;
+        },
+        clearPackages: async function (sessionId) {
+            if (!sessionId) {
+                return;
+            }
+
+            await caches.delete(`packages-${sessionId}/`);
         }
     };
 }());
