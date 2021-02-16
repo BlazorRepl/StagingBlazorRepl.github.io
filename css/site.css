@@ -73,7 +73,7 @@ app {
     padding-top: 0;
 }
 
-#unapp-page a:focus {
+#unapp-page a.btn-primary:focus {
     color: #fff;
 }
 
@@ -134,9 +134,19 @@ app {
     background-color: #FFF;
 }
 
-.toggle-error-list-btn:focus {
-    outline-width: 0;
+    .main .error-list .error-list-title {
+        margin-right: auto;
+        font-weight: bold;
+    }
+
+.toggle-error-list-btn {
+    margin-left: 0.5rem;
+    margin-bottom: 0.25rem;
 }
+
+    .toggle-error-list-btn:focus {
+        outline-width: 0;
+    }
 
 @keyframes spinner-border {
     to {
@@ -155,6 +165,80 @@ app {
     -webkit-animation: spinner-border .75s linear infinite;
     animation: spinner-border .75s linear infinite;
 }
+
+/* Activity Manager*/
+.activity-manager {
+    display: flex;
+    align-items: stretch;
+}
+
+.activity-manager-expanded {
+    width: calc(18% + 50px);
+}
+
+.activity-manager-collapsed {
+    width: 50px;
+}
+
+.activity-options-wrapper {
+    width: 50px
+}
+
+.active-activity-option {
+    background-color: #fff;
+}
+
+.activity-option {
+    padding: 11px;
+    cursor: pointer;
+    position: relative;
+}
+
+    .activity-option:after {
+        content: "";
+        display: block;
+        width: 80%;
+        margin-left: 13%;
+        background: #4aca85;
+        height: 3px;
+        bottom: -1px;
+        left: 0;
+        position: absolute;
+        pointer-events: none;
+        border-radius: 3px;
+        transition: all .15s;
+        opacity: 0;
+        transform: scale(.95);
+    }
+
+    .activity-option:hover:after {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    .activity-option span.activity-icon {
+        font-size: 28px;
+        padding-left: 3px;
+    }
+
+    .activity-option span.packages-count-label {
+        position: absolute;
+        top: 3px;
+        right: 2px;
+        height: 16px;
+        width: 16px;
+        border-radius: 8px;
+        background-color: #4aca85;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: white;
+        font-size: 12px;
+    }
+
+    .activity-option .nuget-package-image {
+        width: 34px;
+    }
 
 /* User Page */
 #user-page-window {
@@ -192,13 +276,21 @@ app {
     z-index: 10;
 }
 
-/* Package Manager */
-.package-manager {
+/* Package Manager & Static Asset Manager */
+.package-manager,
+.static-assets-manager {
     padding: 8px;
-    width: 18%;
+    background-color: white;
+    width: calc(100% - 50px);
 }
 
-.package-container {
+    .package-manager .manager-search-input,
+    .static-assets-manager .manager-search-input {
+        width: 283px;
+    }
+
+.package-container,
+.static-asset-container {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
@@ -209,31 +301,32 @@ app {
         overflow: hidden;
         text-overflow: ellipsis;
         display: inline-block;
-        max-width: calc(100% - 50px);
+        max-width: calc(100% - 65px);
     }
 
 .search-package-wrapper input,
-.search-package-wrapper select {
+.search-package-wrapper select,
+.search-static-assets-wrapper input,
+.search-static-assets-wrapper select {
     display: inline-block;
     margin-right: 5px;
 }
 
-.package-manager .search-package-wrapper {
+.package-manager .search-package-wrapper,
+.static-assets-manager .search-static-assets-wrapper {
     display: flex;
     justify-content: space-around;
     margin-bottom: 5px;
 }
 
-.package-manager-header {
+.package-manager-header,
+.static-assets-manager-header {
     padding-right: 0.25em;
     margin-bottom: 20px;
-    background-color: #F5F5F5
 }
 
-.package-manager-close-btn {
-    cursor: pointer;
-    font-size: 1.3em;
-    font-weight: bold;
+.static-asset {
+    padding-left: 15px;
 }
 
 /* App Loader */
@@ -264,7 +357,7 @@ app {
         background: #4aca85;
         height: 3px;
         bottom: -1px;
-        left: 0;
+        left: -1px;
         position: absolute;
         pointer-events: none;
         border-radius: 3px;
@@ -283,11 +376,6 @@ app {
     color: #303133;
 }
 
-.nuget-package-image {
-    width: 25px;
-    padding-bottom: 5px;
-}
-
 /* Splitter */
 .flex {
     display: flex;
@@ -299,11 +387,11 @@ app {
     background-color: #ccc;
 }
 
-.splitter-container-full-width {
+.splittable-container-full {
     width: 100%;
 }
 
-.splitter-container-shrunk-width {
+.splittable-container-shrunk {
     width: 82%;
 }
 
@@ -313,7 +401,6 @@ app {
 }
 
 #user-code-editor {
-    /*padding-top: 10px;*/
     background-color: #FFF;
 }
 
@@ -385,6 +472,36 @@ app {
     }
 }
 
+/* Tab Settings */
+#tab-settings-btn {
+    align-self: center;
+    margin-right: 15px;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+    #tab-settings-btn:hover {
+        font-weight: bold;
+    }
+
+#tab-settings-popup {
+    position: absolute;
+    top: 35px;
+    right: 10px;
+    width: 145px;
+    z-index: 100;
+    overflow: visible;
+}
+
+.tab-settings-list li {
+    padding: 2px 10px;
+}
+
+    .tab-settings-list li:hover {
+        cursor: pointer;
+        background-color: #F5F5F5;
+    }
+
 /* Package License Popup */
 .package-license-overlay {
     width: 100%;
@@ -422,7 +539,7 @@ app {
         margin-bottom: 132px;
         overflow: auto;
         height: 277px;
-        padding: 5px 20px;
+        padding: 5px 14px;
         width: 425px;
         word-break: break-all;
         background-color: #F5F5F5;
@@ -536,18 +653,28 @@ app {
 }
 
 /* Tabs Manager */
-.nav-tabs > li {
-    height: 40px;
+.tabs-wrapper .nav-tabs {
+    width: 90%;
 }
+
+    .tabs-wrapper .nav-tabs > li {
+        height: 40px;
+    }
 
 #new-tab-input {
     height: 27px;
     width: 160px;
 }
 
-.tabs-wrapper .tab {
-    cursor: pointer;
+.tabs-wrapper {
+    display: flex;
+    justify-content: space-between;
+    position: relative;
 }
+
+    .tabs-wrapper .tab {
+        cursor: pointer;
+    }
 
 .tab-name {
     display: flex;

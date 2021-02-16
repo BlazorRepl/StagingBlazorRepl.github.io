@@ -40,6 +40,20 @@
             input.select();
             document.execCommand('copy');
             document.body.removeChild(input);
+        },
+        closePopupOnWindowClick: function (e, id, invokerId, dotNetInstance) {
+            if (!e || !e.target || !id || !invokerId || !dotNetInstance) {
+                return;
+            }
+
+            let currentElement = e.target;
+            while (currentElement.id !== id && currentElement.id !== invokerId) {
+                currentElement = currentElement.parentNode;
+                if (!currentElement) {
+                    dotNetInstance.invokeMethodAsync('CloseAsync');
+                    break;
+                }
+            }
         }
     };
 }());
@@ -49,50 +63,39 @@ window.App.CodeEditor = window.App.CodeEditor || (function () {
     let _overrideValue;
     let _currentLanguage;
 
-    function initEditor(editorId, value, language) {
-        if (!editorId) {
-            return;
-        }
-
-        require.config({ paths: { 'vs': 'lib/monaco-editor/min/vs' } });
-        require(['vs/editor/editor.main'], () => {
-            _editor = monaco.editor.create(document.getElementById(editorId), {
-                fontSize: '16px',
-                value: _overrideValue || value || '',
-                language: language || _currentLanguage || 'razor'
-            });
-
-            _overrideValue = null;
-            _currentLanguage = language || _currentLanguage;
-        });
-    }
-
-    function getValue() {
-        return _editor && _editor.getValue();
-    }
-
-    function setValue(value, language) {
-        if (_editor) {
-            _editor.setValue(value || '');
-            if (language && language !== _currentLanguage) {
-                monaco.editor.setModelLanguage(_editor.getModel(), language);
-                _currentLanguage = language;
-            }
-        } else {
-            _overrideValue = value;
-            _currentLanguage = language || _currentLanguage;
-        }
-    }
-
-    function focus() {
-        return _editor && _editor.focus();
-    }
-
     return {
-        init: initEditor,
-        initEditor: initEditor,
-        getValue: getValue,
-        setValue: setValue,
+        init: function (editorId, value, language) {
+            if (!editorId) {
+                return;
+            }
+
+            require.config({ paths: { 'vs': 'lib/monaco-editor/min/vs' } });
+            require(['vs/editor/editor.main'], () => {
+                _editor = monaco.editor.create(document.getElementById(editorId), {
+                    fontSize: '16px',
+                    value: _overrideValue || value || '',
+                    language: language || _currentLanguage || 'razor'
+                });
+
+                _overrideValue = null;
+                _currentLanguage = language || _currentLanguage;
+            });
+        },
+        getValue: function () {
+            return _editor && _editor.getValue();
+        },
+        setValue: function (value, language) {
+            if (_editor) {
+                _editor.setValue(value || '');
+                if (language && language !== _currentLanguage) {
+                    monaco.editor.setModelLanguage(_editor.getModel(), language);
+                    _currentLanguage = language;
+                }
+            } else {
+                _overrideValue = value;
+                _currentLanguage = language || _currentLanguage;
+            }
+        },
         setLanguage: function (language) {
             if (!_editor || _currentLanguage === language) {
                 return;
@@ -100,12 +103,16 @@ window.App.CodeEditor = window.App.CodeEditor || (function () {
 
             monaco.editor.setModelLanguage(_editor.getModel(), language);
         },
-        focus: focus,
+        focus: function () {
+            return _editor && _editor.focus();
+        },
         resize: function () {
             _editor && _editor.layout();
         },
         dispose: function () {
             _editor = null;
+            _overrideValue = null;
+            _currentLanguage = null;
         }
     };
 }());
@@ -134,7 +141,7 @@ window.App.Repl = window.App.Repl || (function () {
                 height -= document.getElementsByClassName('tabs-wrapper')[0].offsetHeight;
             }
 
-            const heightString = `${height}px`;
+            const heightString = `${height - 2}px`;
             element.style.height = heightString;
 
             return oldHeight !== heightString;
@@ -157,7 +164,7 @@ window.App.Repl = window.App.Repl || (function () {
                 gutterStyle: (_, gutterSize) => ({
                     'width': `${gutterSize}px`,
                 }),
-                onDrag: () => throttle(window.App.CodeEditor.resize, 20, 'resetEditor'),
+                onDrag: () => throttle(window.App.CodeEditor.resize, 30, 'resetEditor'),
                 onDragEnd: window.App.CodeEditor.resize
             });
         }
@@ -229,7 +236,7 @@ window.App.Repl = window.App.Repl || (function () {
             window.addEventListener('resize', onWindowResize);
             window.addEventListener('keydown', onKeyDown);
 
-            //enableNavigateAwayConfirmation();
+            enableNavigateAwayConfirmation();
         },
         setCodeEditorContainerHeight: function (newLanguage) {
             setElementHeight(_editorContainerId, true);
@@ -246,7 +253,7 @@ window.App.Repl = window.App.Repl || (function () {
 
             disableNavigateAwayConfirmation();
 
-            await window.App.CodeExecution.clearPackages(sessionId);
+            await window.App.CodeExecution.clearResources(sessionId);
         }
     };
 }());
@@ -257,18 +264,34 @@ window.App.SaveSnippetPopup = window.App.SaveSnippetPopup || (function () {
     let _id;
 
     function closePopupOnWindowClick(e) {
-        if (!_dotNetInstance || !_invokerId || !_id) {
-            return;
-        }
+        window.App.closePopupOnWindowClick(e, _id, _invokerId, _dotNetInstance);
+    }
 
-        let currentElement = e.target;
-        while (currentElement.id !== _id && currentElement.id !== _invokerId) {
-            currentElement = currentElement.parentNode;
-            if (!currentElement) {
-                _dotNetInstance.invokeMethodAsync('CloseAsync');
-                break;
-            }
+    return {
+        init: function (id, invokerId, dotNetInstance) {
+            _dotNetInstance = dotNetInstance;
+            _invokerId = invokerId;
+            _id = id;
+
+            window.addEventListener('click', closePopupOnWindowClick);
+        },
+        dispose: function () {
+            _dotNetInstance = null;
+            _invokerId = null;
+            _id = null;
+
+            window.removeEventListener('click', closePopupOnWindowClick);
         }
+    };
+}());
+
+window.App.TabSettingsPopup = window.App.TabSettingsPopup || (function () {
+    let _dotNetInstance;
+    let _invokerId;
+    let _id;
+
+    function closePopupOnWindowClick(e) {
+        window.App.closePopupOnWindowClick(e, _id, _invokerId, _dotNetInstance);
     }
 
     return {
@@ -291,6 +314,8 @@ window.App.SaveSnippetPopup = window.App.SaveSnippetPopup || (function () {
 
 window.App.CodeExecution = window.App.CodeExecution || (function () {
     const UNEXPECTED_ERROR_MESSAGE = 'An unexpected error has occurred. Please try again later or contact the team.';
+    const CACHE_NAME_PREFIX = 'blazor-repl-resources-';
+    const STATIC_ASSETS_FILE_NAME = '__static-assets.json';
 
     let _loadedPackageDlls = null;
 
@@ -305,17 +330,17 @@ window.App.CodeExecution = window.App.CodeExecution || (function () {
         return dotNetArray;
     }
 
-    async function putInCacheStorage(cache, fileName, fileBytes) {
+    function putInCacheStorage(cache, fileName, fileBytes, contentType) {
         const cachedResponse = new Response(
             new Blob([fileBytes]),
             {
                 headers: {
-                    'Content-Type': 'application/octet-stream',
+                    'Content-Type': contentType || 'application/octet-stream',
                     'Content-Length': fileBytes.length.toString()
                 }
             });
 
-        await cache.put(fileName, cachedResponse);
+        return cache.put(fileName, cachedResponse);
     }
 
     function convertBytesToBase64String(bytes) {
@@ -346,10 +371,6 @@ window.App.CodeExecution = window.App.CodeExecution || (function () {
             const fileAsBase64String = typeof fileContent === 'string' ? fileContent : BINDING.conv_string(fileContent);
 
             const cache = await caches.open('blazor-resources-/');
-            if (!cache) {
-                alert(UNEXPECTED_ERROR_MESSAGE);
-                return;
-            }
 
             const cacheKeys = await cache.keys();
             const userComponentsDllCacheKey = cacheKeys.find(x => x.url.indexOf('BlazorRepl.UserComponents.dll') > -1);
@@ -372,14 +393,12 @@ window.App.CodeExecution = window.App.CodeExecution || (function () {
             const fileName = BINDING.conv_string(rawFileName);
             const fileBytes = Blazor.platform.toUint8Array(rawFileBytes);
 
-            const packagesCache = await caches.open(`packages-${sessionId}/`);
-            if (!packagesCache) {
-                return;
-            }
+            const cacheName = CACHE_NAME_PREFIX + sessionId;
+            const cache = await caches.open(cacheName);
 
-            await putInCacheStorage(packagesCache, fileName, fileBytes);
+            await putInCacheStorage(cache, fileName, fileBytes);
         },
-        loadPackageFiles: async function (rawSessionId) {
+        loadResources: async function (rawSessionId) {
             if (!rawSessionId) {
                 // Prevent endless loop on getting the loaded DLLs
                 _loadedPackageDlls = [];
@@ -387,49 +406,87 @@ window.App.CodeExecution = window.App.CodeExecution || (function () {
             }
 
             const sessionId = BINDING.conv_string(rawSessionId);
-            const packagesCache = await caches.open(`packages-${sessionId}/`);
-            if (!packagesCache) {
+            const cacheName = CACHE_NAME_PREFIX + sessionId;
+            const cacheExists = await caches.has(cacheName);
+            if (!cacheExists) {
                 // Prevent endless loop on getting the loaded DLLs
                 _loadedPackageDlls = [];
                 return;
             }
 
             const dlls = [];
+            const scripts = [];
+            const styles = [];
 
-            const files = await packagesCache.keys();
+            const cache = await caches.open(cacheName);
+            const files = await cache.keys();
             for (const file of files) {
-                const response = await packagesCache.match(file.url);
-                const bytes = new Uint8Array(await response.arrayBuffer());
+                const response = await cache.match(file.url);
+                const fileBytes = new Uint8Array(await response.arrayBuffer());
+                const fileUrl = file.url.toLowerCase();
 
-                if (file.url.endsWith('.css')) {
-                    const fileContent = convertBytesToBase64String(bytes);
-                    const link = document.createElement('link');
-                    link.rel = 'stylesheet';
-                    link.type = 'text/css';
-                    link.href = `data:text/css;base64,${fileContent}`;
-                    document.head.appendChild(link);
-                } else if (file.url.endsWith('.js')) {
-                    const fileContent = convertBytesToBase64String(bytes);
-                    const script = document.createElement('script');
-                    script.src = `data:text/javascript;base64,${fileContent}`;
-                    document.body.appendChild(script);
+                if (fileUrl.endsWith('.js')) {
+                    const fileContent = convertBytesToBase64String(fileBytes);
+                    scripts.push(`data:text/javascript;base64,${fileContent}`);
+                } else if (fileUrl.endsWith('.css')) {
+                    const fileContent = convertBytesToBase64String(fileBytes);
+                    styles.push(`data:text/css;base64,${fileContent}`);
+                } else if (fileUrl.endsWith(STATIC_ASSETS_FILE_NAME)) {
+                    const fileContent = new TextDecoder().decode(fileBytes);
+                    const staticAssets = fileContent && JSON.parse(fileContent) || {};
+
+                    // Place static assets as first
+                    (staticAssets.scripts || []).reverse().forEach(s => scripts.unshift(s));
+                    (staticAssets.styles || []).reverse().forEach(s => styles.unshift(s));
                 } else {
                     // Use js_typed_array_to_array instead of jsArrayToDotNetArray so we get a byte[] instead of object[] in .NET code.
-                    dlls.push(BINDING.js_typed_array_to_array(bytes));
+                    dlls.push(BINDING.js_typed_array_to_array(fileBytes));
                 }
             }
+
+            styles.forEach(href => {
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.type = 'text/css';
+                link.href = href;
+                document.head.appendChild(link);
+            });
+
+            scripts.forEach(src => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.defer = 'defer';
+                document.head.appendChild(script);
+            });
 
             _loadedPackageDlls = jsArrayToDotNetArray(dlls);
         },
         getLoadedPackageDlls: function () {
             return _loadedPackageDlls;
         },
-        clearPackages: async function (sessionId) {
+        updateStaticAssets: async function (sessionId, scripts, styles) {
             if (!sessionId) {
                 return;
             }
 
-            await caches.delete(`packages-${sessionId}/`);
+            const cacheName = CACHE_NAME_PREFIX + sessionId;
+            const cache = await caches.open(cacheName);
+
+            if ((scripts && scripts.length) || (styles && styles.length)) {
+                const fileBytes = new TextEncoder().encode(JSON.stringify({ scripts: scripts, styles: styles }));
+
+                await putInCacheStorage(cache, STATIC_ASSETS_FILE_NAME, fileBytes, 'application/json');
+            } else {
+                await cache.delete(STATIC_ASSETS_FILE_NAME);
+            }
+        },
+        clearResources: async function (sessionId) {
+            if (!sessionId) {
+                return;
+            }
+
+            const cacheName = CACHE_NAME_PREFIX + sessionId;
+            await caches.delete(cacheName);
         }
     };
 }());
