@@ -2,13 +2,18 @@
     return {
         reloadIFrame: function (id, newSrc) {
             const iFrame = document.getElementById(id);
-            if (iFrame) {
-                if (newSrc && iFrame.src !== `${window.location.origin}${newSrc}`) {
-                    iFrame.src = newSrc;
-                } else {
-                    // Make sure we refresh actual src, not only internal iframe location
-                    iFrame.src += '';
-                }
+            if (!iFrame) {
+                return;
+            }
+
+            if (!newSrc) {
+                iFrame.contentWindow.location.reload();
+            } else if (iFrame.src !== `${window.location.origin}${newSrc}`) {
+                iFrame.src = newSrc;
+            } else {
+                // There needs to be some change so the iFrame is actually reloaded
+                iFrame.src = '';
+                setTimeout(() => iFrame.src = newSrc);
             }
         },
         changeDisplayUrl: function (url) {
@@ -319,6 +324,7 @@ window.App.CodeExecution = window.App.CodeExecution || (function () {
     const STATIC_ASSETS_FILE_NAME = '__static-assets.json';
 
     let _loadedPackageDlls = null;
+    let _storedPackageFiles = {};
 
     function jsArrayToDotNetArray(jsArray) {
         jsArray = jsArray || [];
@@ -394,15 +400,32 @@ window.App.CodeExecution = window.App.CodeExecution || (function () {
             const fileName = BINDING.conv_string(rawFileName);
             const fileBytes = Blazor.platform.toUint8Array(rawFileBytes);
 
+            _storedPackageFiles[fileName] = false;
+
             const cacheName = CACHE_NAME_PREFIX + sessionId;
             const cache = await caches.open(cacheName);
 
             await putInCacheStorage(cache, fileName, fileBytes);
+
+            _storedPackageFiles[fileName] = true;
+        },
+        areAllPackageFilesStored: function () {
+            const fileNames = Object.getOwnPropertyNames(_storedPackageFiles);
+            if (!fileNames.length) {
+                return true;
+            }
+
+            const result = fileNames.every(fileName => _storedPackageFiles[fileName]);
+            if (result) {
+                _storedPackageFiles = {};
+            }
+
+            return result;
         },
         loadResources: async function (rawSessionId) {
             if (!rawSessionId) {
                 // Prevent endless loop on getting the loaded DLLs
-                _loadedPackageDlls = [];
+                _loadedPackageDlls = jsArrayToDotNetArray([]);
                 return;
             }
 
@@ -411,7 +434,7 @@ window.App.CodeExecution = window.App.CodeExecution || (function () {
             const cacheExists = await caches.has(cacheName);
             if (!cacheExists) {
                 // Prevent endless loop on getting the loaded DLLs
-                _loadedPackageDlls = [];
+                _loadedPackageDlls = jsArrayToDotNetArray([]);
                 return;
             }
 

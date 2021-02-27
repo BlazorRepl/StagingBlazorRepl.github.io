@@ -9,7 +9,7 @@
   "linkerEnabled": false,
   "resources": {
     "assembly": {
-      "BlazorRepl.Client.dll": "sha256-vTt5Q1YCROQIoDxx19NYK1yk15OSzaMpJ8xAqEX6b2U=",
+      "BlazorRepl.Client.dll": "sha256-Vd0jyg\/ce5DYkAgVaqfCRfwLR49aTauV62FjDa5WqJE=",
       "Microsoft.CSharp.dll": "sha256-p6Zo15zz3qX\/9gWFiC8okcmNldkS8Ql+qU\/m5khmjBw=",
       "Microsoft.VisualBasic.Core.dll": "sha256-lVbiJ8H9FeZTTzlcLegk3QRCf2YnDu3h1Pg30r6\/KxE=",
       "Microsoft.VisualBasic.dll": "sha256-27XnI6c\/jgvN+x7Imvb0pR+ug8LrRjLAHC1B5jzBH3M=",
@@ -214,8 +214,8 @@
       "System.IO.Pipelines.dll": "sha256-3ET+mpR7F058YRj9YaLHOVXBqOW6iUxtIpeiKPYw4PA=",
       "System.Security.Cryptography.Pkcs.dll": "sha256-06AjwCB7MrAqzsPlVzuOs8F6LFxb9ZG7IzUQlSTcAbY=",
       "System.Security.Cryptography.ProtectedData.dll": "sha256-gaA4XPH+0i8xU3idSuH+51cZ8j5yzVQ+26GvSJJvvyQ=",
-      "BlazorRepl.Core.dll": "sha256-IOdqH7eijrmaKoGXJPZ2kEf56MfxzJE1snaWmPyVhlQ=",
-      "BlazorRepl.UserComponents.dll": "sha256-6XGzfPNqQirauwuKXpoLK3YFG1LLY+u6OOIJcegYn3A="
+      "BlazorRepl.Core.dll": "sha256-gOKXkNmD7Or4YWHpt97p72h9l+6CdAKHAoXUBbh3wiM=",
+      "BlazorRepl.UserComponents.dll": "sha256-ZgNiXk3sJr+jZ1dkXKg29lJrrR7FnX5c\/eNLFJJ0lRg="
     },
     "lazyAssembly": null,
     "pdb": null,
